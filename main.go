@@ -61,6 +61,9 @@ func createFile() {
 		defer file.Close()
 
 		file.WriteString(getData(i))	// Запись данных в файл
+
+		fmt.Println("Создано файлов: " + fmt.Sprint(i + 1) + " из " + fmt.Sprint(len(links)) + ".")
+		log.Println("Создан файл: " + file.Name() + "	" + fmt.Sprint(i + 1) + " из " + fmt.Sprint(len(links)) + ".")
 	}
 
 	fmt.Println("Создание файлов завершено успешно.")
@@ -108,7 +111,7 @@ func setLink() {
 
 	defer file.Close()
 
-	log.Println("Файл найден. Считываем ссылки...")
+	log.Println("Файл найден.")
 
 	var linkFile string
 	data := make([]byte, 64)

@@ -1,10 +1,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -17,6 +17,8 @@ var links []string
 
 func main() {
 
+	t0 := time.Now()
+
 	//Создание лога
 	file, err := os.OpenFile("info.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 
@@ -28,57 +30,79 @@ func main() {
 
 	log.SetOutput(file)
 
-	//Прием данных пользователя
-	fmt.Print("Выберите файл с ссылками: ")
-	var setFile string
-	fmt.Scan(&setFile)
-	usingFile = setFile
+	flag.StringVar(&usingFile, "f", usingFile, "file")
+	flag.StringVar(&dir, "d", dir, "dir")
 
-	fmt.Print("Укажите директорию для сохранения: ")
-	var selectDir string
-	fmt.Scan(&selectDir)
-	os.MkdirAll(selectDir, 0777)
-	dir = selectDir
+	flag.Parse()
 
-	log.Println("Директория для сохранения: " + selectDir)
-	log.Println("Файл с ссылками: " + setFile)
+	err = os.MkdirAll(dir, 0777)
 
-	createFile()	// Создание файла
-}
+	if err != nil {
+		log.Fatal("Ошибка директории: ", err)
+	}
 
-func createFile() {
+	log.Println("Директория для сохранения: " + dir)
+	log.Println("Файл с ссылками: " + usingFile)
 
-	setLink()	// Чтение ссылок из файла
+	setLink() // Чтение ссылок из файла
 
 	for i := 0; i < len(links); i++ {
 
-		file, err := os.Create(setName())	// Создание файла с уникальным именем
-
-		if err != nil {
-			log.Fatal("Невозможно создать файл: ", err)
-		}
-
-		defer file.Close()
-
-		file.WriteString(getData(i))	// Запись данных в файл
-
-		fmt.Println("Создано файлов: " + fmt.Sprint(i + 1) + " из " + fmt.Sprint(len(links)) + ".")
-		log.Println("Создан файл: " + file.Name() + "	" + fmt.Sprint(i + 1) + " из " + fmt.Sprint(len(links)) + ".")
+		go createFile(i) // Создание файла
 	}
 
-	fmt.Println("Создание файлов завершено успешно.")
-	log.Println("Создание файлов завершено успешно.")
+	var input string
+	fmt.Scanln(&input)
+	fmt.Println("Создание файлов завершено.")
+	log.Println("Создание файлов завершено.")
+	t1 := time.Now()
+	fmt.Printf("Elapsed time: %v", t1.Sub(t0))
 }
 
-func getData(i int) string {
+func createFile(i int) {
 
-	resp, err := http.Get(links[i])
+	var name string
+	var fullName string
+
+	name = strings.ReplaceAll(
+		strings.ReplaceAll(
+			strings.ReplaceAll(
+				strings.ReplaceAll(
+					links[i], ".", "_"), "http://", ""), "https://", ""), "/", "_")
+
+	fullName = dir + "/" + name + ".html"
+
+	file, err := os.Create(fullName)
 
 	if err != nil {
-		fmt.Println("Ошибка доступа к ссылке, подробности в логе.")
-		log.Print("Ссылка не доступна!", err)
+		log.Println("Невозможно создать файл: ", err)
+	}
 
-		return ""
+	defer file.Close()
+
+	data := getData(links[i])
+
+	file.WriteString(data) // Запись данных в файл
+
+	if data == "" {
+		log.Println("Запрашиваемая страница недопустимого типа: " + links[i] + " Строка: " + fmt.Sprint(i+1))
+		fmt.Println("Запрашиваемая страница недопустимого типа:  " + fmt.Sprint(i+1) + " из " + fmt.Sprint(len(links)) + ".")
+	} else if data == "err" {
+		fmt.Println("Ошибка сервера: " + fmt.Sprint(i+1) + " из " + fmt.Sprint(len(links)) + ".")
+	} else {
+		fmt.Println("Создан файл: " + fmt.Sprint(i+1) + " из " + fmt.Sprint(len(links)) + ".")
+		//log.Println("Создан файл: " + file.Name() + "	" + fmt.Sprint(i+1) + " из " + fmt.Sprint(len(links)) + ".")
+	}
+}
+
+func getData(link string) string {
+
+	resp, err := http.Get(link)
+
+	if err != nil {
+		log.Print("Ошибка сервера: ", err)
+
+		return "err"
 	}
 
 	defer resp.Body.Close()
@@ -126,27 +150,4 @@ func setLink() {
 	}
 
 	links = strings.Fields(linkFile)
-}
-
-func setName() string {
-
-	var fullName string
-
-	rand.Seed(time.Now().UnixNano())
-	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ" +
-		"abcdefghijklmnopqrstuvwxyzåäö" +
-		"0123456789")
-		
-	length := 8
-	var b strings.Builder
-
-	for i := 0; i < length; i++ {
-		b.WriteRune(chars[rand.Intn(len(chars))])
-	}
-
-	str := b.String()
-
-	fullName = dir + "/" + str + ".html"
-
-	return fullName
 }
